@@ -8,6 +8,9 @@ from artiq.coredevice.ad9910 import AD9910
 if os.name == "nt":
     import msvcrt
 
+if os.name == "nt":
+    import msvcrt
+
 
 def chunker(seq, size):
     res = []

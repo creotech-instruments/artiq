@@ -72,6 +72,14 @@ def peripheral_grabber(module, peripheral):
     eem.Grabber.add_std(module, port, port_aux)
 
 
+def peripheral_burst_sampler(module, peripheral):
+    if len(peripheral["ports"]) == 2:
+        port, port_aux = peripheral["ports"]
+    else:
+        raise ValueError("wrong number of ports")
+    eem.BurstSampler.add_std(module, port, port_aux, ttl_serdes_7series.Output_8X)
+
+
 def add_peripherals(module, peripherals):
     peripheral_processors = {
         "dio": peripheral_dio,
@@ -79,6 +87,7 @@ def add_peripherals(module, peripherals):
         "sampler": peripheral_sampler,
         "zotino": peripheral_zotino,
         "grabber": peripheral_grabber,
+        "burst_sampler": peripheral_burst_sampler,
     }
     for peripheral in peripherals:
         peripheral_processors[peripheral["type"]](module, peripheral)

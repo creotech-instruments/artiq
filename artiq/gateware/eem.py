@@ -6,6 +6,14 @@ from artiq.gateware import rtio
 from artiq.gateware.rtio.phy import spi2, ad53xx_monitor, grabber
 from artiq.gateware.suservo import servo, pads as servo_pads
 from artiq.gateware.rtio.phy import servo as rtservo
+from artiq.gateware.adc.sampling_burst_controller import SamplingBurstController
+
+from migen.genlib.io import DifferentialInput
+
+from math import ceil, log2
+from artiq.gateware.suservo.pads import SamplerPads
+from artiq.gateware.rtio import rtlink
+from artiq.gateware.suservo.adc_ser import ADC, ADCParams
 
 
 def _eem_signal(i):
@@ -563,3 +571,43 @@ class SUServo(_EEM):
             pads = target.platform.request("{}_{}".format(eem_urukul1, signal))
             target.specials += DifferentialOutput(
                 su.iir.ctrl[i + 4].en_out, pads.p, pads.n)
+
+
+class BurstSampler(Sampler):
+
+    @classmethod
+    def add_std(cls, target, eem, eem_aux, ttl_out_cls, iostandard="LVDS_25", max_samples=1000):
+        cls.add_extension(target, eem, eem_aux, iostandard=iostandard)
+
+        # RTIO channel map:
+        # -----------------
+        #
+        #  +0 - DAQ control (output) / samples readout
+        #
+        #       Address:
+        #         0x0 - trigger
+        #         0x1 - time between conversions
+        #         0x2 - number of samples to acquire
+        #
+        #  +1 - PGIA control
+
+        target.rtio_channels = []
+
+        eem_sampler = "sampler{}".format(eem)
+        sampler_pads = SamplerPads(target.platform, eem_sampler)
+        target.submodules += sampler_pads
+
+        # Burst sampling controller
+        burst_controller = SamplingBurstController(sampler_pads, max_samples=max_samples)
+        target.submodules += burst_controller
+
+        # +0 - DAQ Control
+        # +1 - DAQ memory access
+        target.rtio_channels.extend(burst_controller.rtio_channels)
+
+        # Remaining Sampler support
+        phy = spi2.SPIMaster(
+            target.platform.request("sampler{}_pgia_spi_p".format(eem)),
+            target.platform.request("sampler{}_pgia_spi_n".format(eem)))
+        target.submodules += phy
+        target.rtio_channels.append(rtio.Channel.from_phy(phy, ififo_depth=4))
